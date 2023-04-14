@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import * as dat from 'lil-gui'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 /**
  * Base
@@ -37,6 +38,17 @@ const bricksColorTexture = textureLoader.load('/textures/bricks/color.jpg')
 const bricksAmbientOcclusionTexture = textureLoader.load('/textures/bricks/ambientOcclusion.jpg')
 const bricksNormalTexture = textureLoader.load('/textures/bricks/normal.jpg')
 const bricksRoughnessTexture = textureLoader.load('/textures/bricks/roughness.jpg')
+
+const glassColorTexture = textureLoader.load('/textures/win/color.jpg')
+const glassAmbientOcclusionTexture = textureLoader.load('/textures/win/ambientOcclusion.jpg')
+const glassNormalTexture = textureLoader.load('/textures/win/normal.jpg')
+const glassRoughnessTexture = textureLoader.load('/textures/win/roughness.jpg')
+const glassOpacityTexture = textureLoader.load('/textures/win/opacity.jpg')
+const glassMetalicTexture = textureLoader.load('/textures/win/metallic.jpg')
+//const glassMaterialTexture = textureLoader.load('/textures/win/Material.jpg')
+
+const glassHeightTexture = textureLoader.load('/textures/win/height.png')
+const glassbrokTexture = textureLoader.load('/textures/win/istock.jpg')
 
 const grassColorTexture = textureLoader.load('/textures/grass/color.jpg')
 const grassAmbientOcclusionTexture = textureLoader.load('/textures/grass/ambientOcclusion.jpg')
@@ -88,6 +100,7 @@ roof.rotation.y = Math.PI * 0.25 // or PI / 4
 roof.position.y = 2.5 + 0.5
 house.add(roof)
 
+
 //door
 const door = new THREE.Mesh(
     new THREE.PlaneGeometry(2.2, 2.2, 100, 100),
@@ -113,6 +126,76 @@ door.geometry.setAttribute(
 door.position.y = 1
 door.position.z = 2 + 0.01
 house.add(door)
+
+//window
+const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512);
+const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
+
+const glassMaterial = new THREE.MeshPhysicalMaterial({
+    //color: '#ffffff',
+    //opacity: 0,
+    map: glassColorTexture,
+    transparent: true,
+    aoMap: glassAmbientOcclusionTexture,
+    displacementMap: glassHeightTexture,
+    displacementScale: 0.1,
+    normalMap: glassNormalTexture,
+    roughnessMap: glassRoughnessTexture,
+   // metalnessMap: glassMaterialTexture,
+    metalicMap: glassMetalicTexture,
+    opacityMap: glassOpacityTexture,
+    metalness: 1,
+    roughness: 1,
+    envMap: cubeRenderTarget.texture,
+    refractionRatio: 0.96,
+});
+
+gui.add(glassMaterial, 'roughness').min(0).max(1).step(0.001)
+gui.add(glassMaterial, 'metalness').min(0).max(1).step(0.001)
+
+const windowGeometry = new THREE.PlaneGeometry(1.1, 1.1, 30, 30);
+const windowMesh = new THREE.Mesh(windowGeometry, glassMaterial);
+windowMesh.position.set(2, 1.50, 0); 
+windowMesh.rotation.y = Math.PI / 2;
+scene.add(windowMesh);
+
+
+windowMesh.geometry.setAttribute(
+    'uv2',
+     new THREE.Float32BufferAttribute(windowMesh.geometry.attributes.uv.array, 2)
+)
+
+// Chimney
+const chimney = new THREE.Mesh(
+new THREE.BoxGeometry(0.5, 1.5, 0.5),
+new THREE.MeshStandardMaterial({color: "#b35f45"})
+)
+chimney.position.set(-1.5, 2 + 0.75, 0.5)
+chimney.rotation.z = Math.PI * 0.1 
+house.add(chimney);
+
+// Chimney smoke
+
+const particleCount = 1000; 
+
+const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1); 
+const material = new THREE.MeshBasicMaterial({color: 0x3a3d52, opacity:0.7}); 
+const particles = new THREE.Group(); 
+
+for (let i = 0; i < particleCount; i++) {
+    const particle = new THREE.Mesh(geometry, material);
+  
+    particle.position.set(
+
+        chimney.position.x + (Math.random() - 0.5) * 0.3 - 0.2, 
+        chimney.position.y + chimney.scale.y / 2 + Math.random() * 0.3 , 
+        chimney.position.z + (Math.random() - 0.5) * 0.1 
+    );
+    particles.add(particle); 
+}
+
+scene.add(particles);
+
 
 //Bushes
 const bushGeometry = new THREE.SphereGeometry(1, 16, 16)
@@ -202,6 +285,23 @@ const doorLight = new THREE.PointLight('#ff7d46', 1, 7)
 doorLight.position.set(0, 2.2, 2.7)
 house.add(doorLight)
 
+// Set up the light interval timer
+let isLightOn = true;
+setInterval(() => {
+  if (isLightOn) {
+    // Turn off the light after 2 seconds
+    setTimeout(() => {
+      doorLight.visible = false;
+      isLightOn = false;
+    }, 500);
+  } else {
+    // Turn on the light after 1 second
+    setTimeout(() => {
+      doorLight.visible = true;
+      isLightOn = true;
+    }, 1000);
+  }
+}, 3000);
 
 /**
  * Ghosts
@@ -340,6 +440,18 @@ const tick = () =>
 
     // Update controls
     controls.update()
+    //Update Mirror
+    cubeCamera.position.copy(windowMesh.position);
+    cubeCamera.update(renderer, scene);
+
+    //chimny stomk
+    particles.children.forEach((particle) => { 
+        particle.position.y += Math.random() * 0.03; 
+        if (particle.position.y > 4.5) { // 
+            particle.position.y = 3;
+        }
+        particle.rotation.z += Math.random() * 0.1; 
+     });
 
     // Render
     renderer.render(scene, camera)
